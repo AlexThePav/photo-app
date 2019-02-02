@@ -1,50 +1,73 @@
 $(document).on('turbolinks:load', function() {
-  var show_error, stripeResponseHandler, submitHandler;
+  // Create a Stripe client.
+var stripe = Stripe('pk_test_G5cGZJ5VrShMzJ0RcgCpQdGZ');
 
-  submitHandler = function (event) {
-    var $form = $(event.target);
-    $form.find("input[type=submit]").prop("disabled", true);
+// Create an instance of Elements.
+var elements = stripe.elements();
 
-    //If Stripe was initialized correctly this will create a token using the credit card info
-    if(Stripe) {
-      Stripe.card.createToken($form, stripeResponseHandler);
-    } else {
-      show_error("Failed to load credit card processing functionality. Please reload this page in your browser.")
+// Custom styling can be passed to options when creating an Element.
+// (Note that this demo uses a wider set of styles than the guide below.)
+var style = {
+  base: {
+    color: '#32325d',
+    lineHeight: '18px',
+    fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+    fontSmoothing: 'antialiased',
+    fontSize: '16px',
+    '::placeholder': {
+      color: '#aab7c4'
     }
-    return false
-  };
-
-  $(".cc_form").on('submit', submitHandler);
-
-  stripeResponseHandler = function (status, response) {
-    var token, $form;
-    $form = $('.cc_form');
-
-    if (response.error) {
-      console.log(response.error.message);
-      show_error(response.error.message);
-      $form.find("input[type=submit]").prop("disabled", false);
-    } else {
-      token = response.id;
-      $form.append($("<input type=\"hidden\" name=\"payment[token]\" />").val(token));
-      $("[data-stripe=number]").remove();
-      $("[data-stripe=cvc]").remove();
-      $("[data-stripe=exp-year]").remove();
-      $("[data-stripe=exp-month]").remove();
-      $("[data-stripe=label]").remove();
-      $form.get(0).submit();
-    }
-
-    return false;
-  };
-
-  show_error = function (message) {
-    if($("#flash-messages").size() < 1) {
-      $('div.container.main div:first').prepend("<div id='flash-messages'></div>")
-    }
-    $("#flash-messages").html('<div class="alert alert-warning"><a class="close" data-dismiss="alert">×</a><div id="flash_alert">' + message + '</div></div>');
-    $('.alert').delay(5000).fadeOut(3000);
-    return false;
+  },
+  invalid: {
+    color: '#fa755a',
+    iconColor: '#fa755a'
   }
-  
+};
+
+// Create an instance of the card Element.
+var card = elements.create('card', {style: style});
+
+// Add an instance of the card Element into the `card-element` <div>.
+card.mount('#card-element');
+
+// Handle real-time validation errors from the card Element.
+card.addEventListener('change', function(event) {
+  var displayError = document.getElementById('card-errors');
+  if (event.error) {
+    displayError.textContent = event.error.message;
+  } else {
+    displayError.textContent = '';
+  }
+});
+
+// Handle form submission.
+var form = document.getElementById('cc_form');
+form.addEventListener('submit', function(event) {
+  event.preventDefault();
+
+  stripe.createToken(card).then(function(result) {
+    if (result.error) {
+      // Inform the user if there was an error.
+      var errorElement = document.getElementById('card-errors');
+      errorElement.textContent = result.error.message;
+    } else {
+      // Send the token to your server.
+      stripeTokenHandler(result.token);
+    }
+  });
+});
+
+// Submit the form with the token ID.
+function stripeTokenHandler(token) {
+  // Insert the token ID into the form so it gets submitted to the server
+  var form = document.getElementById('cc_form');
+  var hiddenInput = document.createElement('input');
+  hiddenInput.setAttribute('type', 'hidden');
+  hiddenInput.setAttribute('name', 'stripeToken');
+  hiddenInput.setAttribute('value', token.id);
+  form.appendChild(hiddenInput);
+
+  // Submit the form
+  form.submit();
+}
 })
